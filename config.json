@@ -1,0 +1,10 @@
+{
+    "invoice_settings": {
+        "shop_name": "JakOuNienCraft",
+        "logo_path": "C:/Users/JakOuNien/Downloads/Telegram Desktop/Logo.png",
+        "footer_text": "Thank you for your order!"
+    },
+    "custom_themes": {},
+    "language": "en",
+    "invoice_detail_presets": {}
+}

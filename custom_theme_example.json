@@ -1,0 +1,23 @@
+﻿{
+    "BG_COLOR": "#212121",
+    "FRAME_COLOR": "#303030",
+    "TEXT_ON_BG_COLOR": "#e0e0e0",
+    "TEXT_ON_FRAME_COLOR": "#e0e0e0",
+    "BUTTON_TEXT_COLOR": "#ffffff",
+    "SELECTED_TEXT_COLOR": "#212121",
+    "ACCENT_COLOR": "#5e35b1",
+    "ACCENT_HOVER_COLOR": "#7e57c2",
+    "BORDER_COLOR": "#424242",
+    "TAB_BG": "#212121",
+    "TAB_FG": "#bdbdbd",
+    "TAB_SELECTED_BG": "#303030",
+    "TAB_SELECTED_FG": "#fdd835",
+    "TREE_HEADING_BG": "#424242",
+    "TREE_FIELD_BG": "#303030",
+    "COMBO_LIST_BG": "#424242",
+    "COMBO_LIST_FG": "#e0e0e0",
+    "COMBO_LIST_SELECT_BG": "#5e35b1",
+    "COMBO_LIST_SELECT_FG": "#ffffff",
+    "COMBO_FIELD_FG": "#212121"
+}
+

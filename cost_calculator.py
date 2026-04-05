@@ -18,13 +18,30 @@ try:
 except ImportError:
     LIBRARIES_INSTALLED = False
 
+def get_ext_path(filename):
+    """ Возвращает путь к внешним файлам (конфиги, переводы, шрифты), которые лежат рядом с .exe """
+    if getattr(sys, 'frozen', False):
+        base_path = os.path.dirname(sys.executable)
+    else:
+        base_path = os.path.abspath(".")
+    return os.path.join(base_path, filename)
+
+def resource_path(relative_path):
+    """ Возвращает путь к файлам, ВШИТЫМ внутрь .exe (например, icon.png) """
+    try:
+        base_path = sys._MEIPASS
+    except Exception:
+        base_path = os.path.abspath(".")
+    return os.path.join(base_path, relative_path)
+
 # --- Language Manager Class ---
 class LanguageManager:
     def __init__(self, language_file='languages.json'):
         self.languages = {}
         self.current_language = 'en'
-        if os.path.exists(language_file):
-            with open(language_file, 'r', encoding='utf-8-sig') as f:
+        lang_path = get_ext_path(language_file)
+        if os.path.exists(lang_path):
+            with open(lang_path, 'r', encoding='utf-8-sig') as f:
                 self.languages = json.load(f)
 
     def set_language(self, lang_code):
@@ -602,6 +619,7 @@ class InvoicePreviewWindow(tk.Toplevel):
                              if settings.get(item_key, True):
                                  raw_val = tab_widget.variables[item_lang_key].get()
                                  
+                                 # Formatting for technical params
                                  display_val = str(raw_val)
                                  if item_key == 'show_weight':
                                      try: display_val = f"{float(raw_val):.0f} g"
@@ -670,6 +688,33 @@ class InvoicePreviewWindow(tk.Toplevel):
 class CostCalculatorApp(tk.Tk):
     def __init__(self):
         super().__init__()
+        
+        self.title(lang_manager.get("app_title"))
+        
+        # --- ФИКС ИКОНКИ ДЛЯ ПАНЕЛИ ЗАДАЧ WINDOWS ---
+        if os.name == 'nt':
+            try:
+                import ctypes
+                myappid = 'jakounien.3dcalculator.v4.8' # Уникальный ID программы
+                ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID(myappid)
+            except Exception:
+                pass
+
+        # --- Установка иконки окна ---
+        icon_ico = resource_path('icon.ico')
+        icon_png = resource_path('icon.png')
+        
+        try:
+            # На Windows надежнее всего работает формат .ico через iconbitmap
+            if os.name == 'nt' and os.path.exists(icon_ico):
+                self.iconbitmap(icon_ico)
+            elif os.path.exists(icon_png):
+                # Фолбэк для Mac/Linux
+                icon_img = tk.PhotoImage(file=icon_png)
+                self.iconphoto(True, icon_img)
+        except Exception:
+            pass
+                
         self.config_file = 'config.json'
         self.presets_file = 'presets.json'
         self.config_data = self.load_config()
@@ -678,16 +723,16 @@ class CostCalculatorApp(tk.Tk):
         self.currency = self.config_data.get("currency", "€")
         self.available_currencies = ["€", "$", "£", "₴", "¥", "zł"]
 
-        if LIBRARIES_INSTALLED and os.path.exists('DejaVuSans.ttf') and os.path.exists('DejaVuSans-Bold.ttf'):
-            pdfmetrics.registerFont(TTFont('DejaVu', 'DejaVuSans.ttf'))
-            pdfmetrics.registerFont(TTFont('DejaVu-Bold', 'DejaVuSans-Bold.ttf'))
+        # ПРОВЕРЯЕМ ШРИФТЫ ЧЕРЕЗ НОВУЮ ФУНКЦИЮ get_ext_path
+        if LIBRARIES_INSTALLED and os.path.exists(get_ext_path('DejaVuSans.ttf')) and os.path.exists(get_ext_path('DejaVuSans-Bold.ttf')):
+            pdfmetrics.registerFont(TTFont('DejaVu', get_ext_path('DejaVuSans.ttf')))
+            pdfmetrics.registerFont(TTFont('DejaVu-Bold', get_ext_path('DejaVuSans-Bold.ttf')))
         else:
             messagebox.showwarning(
                 "Font Missing",
                 "For Cyrillic support, ensure DejaVuSans.ttf is in the folder."
             )
 
-        self.title(lang_manager.get("app_title"))
         self.geometry("1400x900")
         self.state('zoomed')
         self.minsize(1024, 768)
@@ -808,9 +853,10 @@ class CostCalculatorApp(tk.Tk):
     
     def load_presets(self):
         defaults = self.get_default_presets()
-        if os.path.exists(self.presets_file):
+        preset_path = get_ext_path(self.presets_file)
+        if os.path.exists(preset_path):
             try:
-                with open(self.presets_file, 'r', encoding='utf-8-sig') as f:
+                with open(preset_path, 'r', encoding='utf-8-sig') as f:
                     loaded = json.load(f)
                     for cat in defaults:
                         if cat not in loaded: loaded[cat] = defaults[cat]
@@ -819,25 +865,28 @@ class CostCalculatorApp(tk.Tk):
         return defaults
 
     def save_presets_to_file(self):
+        preset_path = get_ext_path(self.presets_file)
         try:
-            with open(self.presets_file, 'w', encoding='utf-8') as f: json.dump(self.presets, f, indent=4, ensure_ascii=False)
+            with open(preset_path, 'w', encoding='utf-8') as f: json.dump(self.presets, f, indent=4, ensure_ascii=False)
         except IOError as e: messagebox.showerror("Error", f"Failed to save presets: {e}")
 
     def load_config(self):
-        if os.path.exists(self.config_file):
+        config_path = get_ext_path(self.config_file)
+        if os.path.exists(config_path):
             try:
-                with open(self.config_file, 'r', encoding='utf-8-sig') as f: return json.load(f)
+                with open(config_path, 'r', encoding='utf-8-sig') as f: return json.load(f)
             except Exception: return {}
         return {}
 
     def save_config(self):
+        config_path = get_ext_path(self.config_file)
         try:
             self.config_data['invoice_settings'] = self.invoice_settings
             self.config_data['custom_themes'] = self.custom_themes
             self.config_data['language'] = lang_manager.current_language
             self.config_data['currency'] = self.currency
             self.config_data['invoice_detail_presets'] = self.invoice_detail_presets
-            with open(self.config_file, 'w', encoding='utf-8') as f: json.dump(self.config_data, f, indent=4, ensure_ascii=False)
+            with open(config_path, 'w', encoding='utf-8') as f: json.dump(self.config_data, f, indent=4, ensure_ascii=False)
         except IOError: pass
 
     def change_theme(self, theme_name, custom_theme_data=None):
@@ -917,8 +966,13 @@ class CostCalculatorApp(tk.Tk):
         self.restart_app()
         
     def restart_app(self):
+        import subprocess
         self.destroy()
-        os.execl(sys.executable, sys.executable, *sys.argv)
+        if getattr(sys, 'frozen', False):
+            subprocess.Popen([sys.executable] + sys.argv[1:])
+        else:
+            subprocess.Popen([sys.executable] + sys.argv)
+        os._exit(0)
     
     def update_language_menu_texts(self):
         self.file_menu.delete(0, tk.END)
@@ -1221,8 +1275,8 @@ class CostCalculatorApp(tk.Tk):
         margin = 1.5 * cm
         y_pos, page_num = height - margin, 1
         
-        font_name = "DejaVu" if os.path.exists('DejaVuSans.ttf') else "Helvetica"
-        font_name_bold = "DejaVu-Bold" if os.path.exists('DejaVuSans-Bold.ttf') else "Helvetica-Bold"
+        font_name = "DejaVu" if os.path.exists(get_ext_path('DejaVuSans.ttf')) else "Helvetica"
+        font_name_bold = "DejaVu-Bold" if os.path.exists(get_ext_path('DejaVuSans-Bold.ttf')) else "Helvetica-Bold"
        
         def draw_header():
             c.setFont(font_name, 14)

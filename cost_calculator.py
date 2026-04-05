@@ -2,6 +2,7 @@ import tkinter as tk
 from tkinter import ttk, messagebox, simpledialog, filedialog
 import json
 import os
+import sys
 from collections import OrderedDict
 import webbrowser
 
@@ -191,7 +192,8 @@ class CalculationTab(ttk.Frame):
             final_price = price_before_adjust * (1 - (discount_percentage / 100))
             final_price = final_price * (1 + (additional_markup_percentage / 100))
             self.final_price = final_price
-            set_val = lambda name, value: self.variables[name].set(f"{value:.2f} €")
+            
+            set_val = lambda name, value: self.variables[name].set(f"{value:.2f} {self.main_app.currency}")
             set_val('result_plastic_cost', plastic_cost)
             set_val('result_electricity_cost', electricity_cost)
             set_val('result_depreciation', depreciation_cost)
@@ -230,7 +232,7 @@ class CalculationTab(ttk.Frame):
         ttk.Separator(parent, orient='horizontal').grid(row=r, column=0, columnspan=2, sticky='ew', pady=10); r+=1
         self.result_labels['final_price_header'] = ttk.Label(parent, text=lang_manager.get("result_final_price_header"), style='Total.TLabel')
         self.result_labels['final_price_header'].grid(row=r, column=0, sticky='w', pady=(15,0)); r+=1
-        final_price_var = tk.StringVar(value="0.00 €")
+        final_price_var = tk.StringVar(value=f"0.00 {self.main_app.currency}")
         self.variables['result_final_price'] = final_price_var
         ttk.Label(parent, textvariable=final_price_var, style='Total.TLabel').grid(row=r-1, column=1, sticky='e', pady=(15,0))
 
@@ -337,21 +339,16 @@ class ModelInvoiceSettingsWindow(tk.Toplevel):
 
         self.vars = {}
         
-        # Исправление черной полосы: замена LabelFrame на Frame + Заголовок
         for group_key, group_data in self.main_app.invoice_detail_groups.items():
-            # Контейнер группы
             group_container = ttk.Frame(inner_frame, style="Custom.TFrame")
             group_container.pack(fill='x', pady=(0, 15))
             
-            # Заголовок
             ttk.Label(group_container, text=lang_manager.get(group_data['lang_key']), 
                       style="ResultSubHeader.TLabel").pack(anchor='w', pady=(0, 5))
             
-            # Область контента с рамкой
             content_frame = ttk.Frame(group_container, style="Custom.TFrame", relief="solid", borderwidth=1)
             content_frame.pack(fill='x', ipadx=5, ipady=5)
 
-            # Элементы (чекбоксы)
             for item_key, item_lang_key in group_data['items'].items():
                 self.vars[item_key] = tk.BooleanVar(value=self.settings.get(item_key, True))
                 cb = ttk.Checkbutton(content_frame, text=lang_manager.get(item_lang_key), 
@@ -372,7 +369,6 @@ class ModelInvoiceSettingsWindow(tk.Toplevel):
         self.parent.update_model_settings(self.model_name, self.settings)
         self.destroy()
 
-
 class InvoicePreviewWindow(tk.Toplevel):
     def __init__(self, parent):
         super().__init__(parent)
@@ -388,11 +384,9 @@ class InvoicePreviewWindow(tk.Toplevel):
         control_frame = ttk.Frame(top_frame, style="Custom.TFrame")
         control_frame.pack(side="left", fill="x", expand=True)
         
-        # Кнопки действий
         ttk.Button(control_frame, text=lang_manager.get("invoice_save_pdf"), command=self.generate_pdf).pack(side="left", padx=(0, 10))
         ttk.Button(control_frame, text=lang_manager.get("invoice_settings"), command=self.open_settings).pack(side="left", padx=5)
         
-        # Выбор шаблона (Пресеты)
         ttk.Label(control_frame, text=lang_manager.get("invoice_preset_label"), style="Custom.TLabel").pack(side="left", padx=(20, 5))
         self.preset_var = tk.StringVar(value="Standard")
         self.presets = {
@@ -401,11 +395,9 @@ class InvoicePreviewWindow(tk.Toplevel):
             lang_manager.get("invoice_preset_transparent"): "transparent",
             lang_manager.get("invoice_preset_detailed"): "detailed"
         }
-        # Инвертируем словарь для поиска ключа по значению при необходимости, но здесь используем ключи UI
         preset_values = list(self.presets.keys())
         preset_combo = ttk.Combobox(control_frame, textvariable=self.preset_var, values=preset_values, state="readonly", width=25)
         preset_combo.pack(side="left")
-        # По умолчанию выбираем Стандарт (если есть в списке, иначе первый)
         default_preset = lang_manager.get("invoice_preset_standard")
         if default_preset in preset_values:
             preset_combo.set(default_preset)
@@ -414,7 +406,6 @@ class InvoicePreviewWindow(tk.Toplevel):
             
         preset_combo.bind("<<ComboboxSelected>>", self.apply_invoice_preset)
 
-        # Выбор языка
         ttk.Label(control_frame, text=lang_manager.get("invoice_language"), style="Custom.TLabel").pack(side="left", padx=(20, 5))
         self.invoice_lang = tk.StringVar(value=lang_manager.current_language)
         lang_combo = ttk.Combobox(control_frame, textvariable=self.invoice_lang, values=lang_manager.get_available_languages(), state="readonly", width=5)
@@ -427,7 +418,6 @@ class InvoicePreviewWindow(tk.Toplevel):
         container = ttk.Frame(self, style="Custom.TFrame")
         container.pack(fill="both", expand=True, padx=15, pady=10)
         
-        # Левая панель (Список моделей)
         left_pane = ScrollableFrame(container, self.main_app.active_theme['BG_COLOR'])
         left_pane.pack(side="left", fill="y", padx=(0, 15), ipadx=0)
         left_pane_inner = left_pane.scrollable_frame
@@ -437,12 +427,10 @@ class InvoicePreviewWindow(tk.Toplevel):
         
         self.model_vars = {}
         self.model_detail_settings = {}
-        # Собираем все возможные опции из всех групп
         all_options = {key for group in self.main_app.invoice_detail_groups.values() for key in group['items']}
 
         for item in self.main_app.summary_tree.get_children():
             model_name, _ = self.main_app.summary_tree.item(item, 'values')
-            # По умолчанию включаем всё, потом пресет обрежет лишнее
             self.model_detail_settings[model_name] = {key: True for key in all_options}
             
             model_frame = ttk.Frame(left_pane_inner, style="Custom.TFrame")
@@ -457,12 +445,10 @@ class InvoicePreviewWindow(tk.Toplevel):
                                       command=lambda m=model_name: self.open_model_settings(m))
             settings_btn.pack(side='right')
 
-        # Поле для заметок
         ttk.Label(left_pane_inner, text=lang_manager.get("invoice_notes_label"), style="Header.TLabel").pack(anchor="w", pady=(20, 5))
         self.notes_text = tk.Text(left_pane_inner, height=5, width=35, font=("Segoe UI", 9), wrap="word", relief="solid", borderwidth=1)
         self.notes_text.pack(fill="x", padx=2)
         
-        # Плейсхолдер
         placeholder = lang_manager.get("invoice_notes_placeholder")
         self.notes_text.insert("1.0", placeholder)
         self.notes_text.config(fg="grey")
@@ -470,12 +456,10 @@ class InvoicePreviewWindow(tk.Toplevel):
         self.notes_text.bind("<FocusOut>", lambda e: self.on_notes_focus_out(e, placeholder))
         self.notes_text.bind("<KeyRelease>", lambda e: self.draw_preview())
 
-        # Канвас (Лист бумаги)
         self.preview_canvas = tk.Canvas(container, bg="#525659", highlightthickness=0)
         self.preview_canvas.pack(side="left", fill="both", expand=True)
         self.preview_canvas.bind("<Configure>", lambda e: self.draw_preview())
         
-        # Применяем текущий пресет при запуске
         self.apply_invoice_preset(None)
 
     def on_notes_focus_in(self, event, placeholder):
@@ -492,32 +476,26 @@ class InvoicePreviewWindow(tk.Toplevel):
         selection = self.preset_var.get()
         preset_key = self.presets.get(selection, "standard")
         
-        # Карта настроек для каждого пресета
         setting_map = {
             "simple": {
-                # Скрыть все детали, кроме финальной цены (которая обязательна)
                 "group_printing": False, "group_postprocessing": False, "group_packaging": False,
                 "show_weight": False, "show_time": False,
                 "show_cost_price": False, "show_profit": False, "show_price_before_adjust": False
             },
             "standard": {
-                # Показать группы, но скрыть технические детали пластика/тока
                 "group_printing": False, "group_postprocessing": True, "group_packaging": True,
                 "show_weight": False, "show_time": False,
                 "show_plastic_cost": False, "show_electricity_cost": False, "show_depreciation": False,
                 "show_cost_price": False, "show_profit": False, "show_price_before_adjust": False
             },
             "transparent": {
-                # "Честный": Показать расходы, вес, время, но СКРЫТЬ прибыль
                 "show_weight": True, "show_time": True,
                 "show_plastic_cost": True, "show_electricity_cost": True, "show_depreciation": True,
-                "show_cost_price": True, # Себестоимость показать
-                "show_profit": False,    # Прибыль скрыть
+                "show_cost_price": True,
+                "show_profit": False,
                 "show_price_before_adjust": False
             },
-            "detailed": {
-                 # Включить всё. True - значение по умолчанию ниже.
-            }
+            "detailed": {}
         }
 
         new_conf = setting_map.get(preset_key, {})
@@ -530,13 +508,9 @@ class InvoicePreviewWindow(tk.Toplevel):
                 elif preset_key == "simple":
                     self.model_detail_settings[model_name][key] = False
                 else: 
-                    # Если ключ есть в конфиге пресета - берем его, иначе True (показываем)
-                    # Но для 'standard' и 'transparent' нам нужно точное управление
                     if key in new_conf:
                         self.model_detail_settings[model_name][key] = new_conf[key]
                     else:
-                        # Если ключа нет в конфиге, для transparent/standard считаем True (если это не profit)
-                        # Но лучше быть явным. Если не указано - True.
                         self.model_detail_settings[model_name][key] = True
 
         self.draw_preview()
@@ -568,7 +542,6 @@ class InvoicePreviewWindow(tk.Toplevel):
         x_off = (canvas_w - page_w) / 2
         y_off = 20
         
-        # Лист
         self.preview_canvas.create_rectangle(x_off, y_off, x_off + page_w, y_off + page_h, fill="white", outline="#000000")
         self.preview_canvas.create_rectangle(x_off + 2, y_off + 2, x_off + page_w + 2, y_off + page_h + 2, fill="#000000", stipple="gray25", outline="")
 
@@ -580,7 +553,6 @@ class InvoicePreviewWindow(tk.Toplevel):
         font_bold = ("Arial", int(10 * scale), "bold")
         font_small = ("Arial", int(8 * scale))
         
-        # Шапка
         self.preview_canvas.create_text(x_off + margin, current_y, text=self.main_app.invoice_settings.get('shop_name', ''), anchor="nw", font=font_title)
         current_y += 40 * scale
         self.preview_canvas.create_line(x_off + margin, current_y, x_off + page_w - margin, current_y, fill="#CCCCCC")
@@ -590,13 +562,12 @@ class InvoicePreviewWindow(tk.Toplevel):
         selected_models = [name for name, var in self.model_vars.items() if var.get()]
         
         for model_name in selected_models:
-            price_str = "0.00 €"
+            price_str = f"0.00 {self.main_app.currency}"
             for item in self.main_app.summary_tree.get_children():
                 if self.main_app.summary_tree.item(item, 'values')[0] == model_name:
                     price_str = self.main_app.summary_tree.item(item, 'values')[1]
                     break
             
-            # Заголовок модели
             self.preview_canvas.create_rectangle(x_off + margin, current_y, x_off + page_w - margin, current_y + (25*scale), fill="#333333", outline="")
             self.preview_canvas.create_text(x_off + margin + (5*scale), current_y + (12*scale), text=model_name, anchor="w", font=font_bold, fill="white")
             self.preview_canvas.create_text(x_off + page_w - margin - (5*scale), current_y + (12*scale), text=price_str, anchor="e", font=font_bold, fill="white")
@@ -612,17 +583,13 @@ class InvoicePreviewWindow(tk.Toplevel):
             
             if tab_widget:
                 for group_key, group_data in self.main_app.invoice_detail_groups.items():
-                    # Проверяем видимость хотя бы одного элемента
                     has_visible_items = any(settings.get(k, True) for k in group_data['items'])
                     
-                    # Логика отображения заголовка группы
                     show_group_header = True
-                    # В простом режиме скрываем заголовки, если внутри пусто, кроме финального
                     if self.preset_var.get() == lang_manager.get("invoice_preset_simple"):
                         show_group_header = False
 
                     if has_visible_items or (group_data['total_key'] and show_group_header):
-                         # Заголовок группы (если не скрыт и не Simple)
                          if group_data['total_key'] and show_group_header:
                              header_txt = lang_manager.get(group_data['lang_key'], lang_code)
                              total_val = tab_widget.variables.get(group_data['total_key'], tk.StringVar(value="")).get()
@@ -631,23 +598,21 @@ class InvoicePreviewWindow(tk.Toplevel):
                              self.preview_canvas.create_text(x_off + page_w - margin, current_y, text=total_val, anchor="e", font=font_bold)
                              current_y += 15 * scale
                          
-                         # Элементы списка
                          for item_key, item_lang_key in group_data['items'].items():
                              if settings.get(item_key, True):
-                                 # Получаем значение
                                  raw_val = tab_widget.variables[item_lang_key].get()
                                  
-                                 # Форматирование для веса и времени (они DoubleVar, а не StringVar с евро)
                                  display_val = str(raw_val)
                                  if item_key == 'show_weight':
-                                     display_val = f"{float(raw_val):.0f} g"
+                                     try: display_val = f"{float(raw_val):.0f} g"
+                                     except: pass
                                  elif item_key == 'show_time':
-                                     display_val = f"{float(raw_val):.1f} h"
-                                 
-                                 lbl = lang_manager.get(item_lang_key, lang_code)
-                                 # Для технических параметров используем другие ключи перевода
-                                 if item_key == 'show_weight': lbl = lang_manager.get('param_weight', lang_code)
-                                 if item_key == 'show_time': lbl = lang_manager.get('param_time', lang_code)
+                                     try: display_val = f"{float(raw_val):.1f} h"
+                                     except: pass
+
+                                 label = lang_manager.get(item_lang_key, lang_code)
+                                 if item_key == 'show_weight': label = lang_manager.get('param_weight', lang_code)
+                                 if item_key == 'show_time': label = lang_manager.get('param_time', lang_code)
 
                                  self.preview_canvas.create_text(x_off + margin + (10*scale), current_y, text=lbl, anchor="w", font=font_normal, fill="#555555")
                                  self.preview_canvas.create_text(x_off + page_w - margin, current_y, text=display_val, anchor="e", font=font_normal, fill="#555555")
@@ -658,17 +623,14 @@ class InvoicePreviewWindow(tk.Toplevel):
 
             current_y += 10 * scale
 
-        # Итоги
         footer_y = y_off + page_h - margin - (15 * scale)
         
-        # Заметки
         notes_content = self.notes_text.get("1.0", "end-1c")
         placeholder = lang_manager.get("invoice_notes_placeholder")
         if notes_content and notes_content != placeholder and notes_content.strip():
              self.preview_canvas.create_text(x_off + margin, current_y + (20*scale), text=lang_manager.get("invoice_notes_label", lang_code), font=font_bold, anchor="w")
              self.preview_canvas.create_text(x_off + margin, current_y + (35*scale), text=notes_content, font=font_small, anchor="nw", width=(page_w - 2*margin))
 
-        # Общие суммы
         total = self.main_app.summary_vars['total'].get()
         grand_total = self.main_app.summary_vars['grand_total'].get()
         
@@ -683,7 +645,6 @@ class InvoicePreviewWindow(tk.Toplevel):
         self.preview_canvas.create_text(x_off + page_w - margin - (80*scale), ty, text=lang_manager.get('pdf_total_due', lang_code) + ":", anchor="e", font=font_title)
         self.preview_canvas.create_text(x_off + page_w - margin, ty, text=grand_total, anchor="e", font=font_title, fill=self.main_app.active_theme['ACCENT_COLOR'])
 
-        # Футер
         self.preview_canvas.create_text(x_off + page_w/2, footer_y, text=self.main_app.invoice_settings.get('footer_text', ''), anchor="center", font=font_small, fill="#777777")
 
     def generate_pdf(self):
@@ -713,6 +674,9 @@ class CostCalculatorApp(tk.Tk):
         self.presets_file = 'presets.json'
         self.config_data = self.load_config()
         lang_manager.set_language(self.config_data.get('language', 'en'))
+        
+        self.currency = self.config_data.get("currency", "€")
+        self.available_currencies = ["€", "$", "£", "₴", "¥", "zł"]
 
         if LIBRARIES_INSTALLED and os.path.exists('DejaVuSans.ttf') and os.path.exists('DejaVuSans-Bold.ttf'):
             pdfmetrics.registerFont(TTFont('DejaVu', 'DejaVuSans.ttf'))
@@ -809,10 +773,8 @@ class CostCalculatorApp(tk.Tk):
                 "lang_key": "group_printing",
                 "total_key": "result_print_total",
                 "items": OrderedDict([
-                    # --- Новые параметры (Вес и Время) ---
                     ('show_weight', 'total_weight_g'),
                     ('show_time', 'print_time_h'),
-                    # -------------------------------------
                     ('show_plastic_cost', 'result_plastic_cost'),
                     ('show_electricity_cost', 'result_electricity_cost'),
                     ('show_depreciation', 'result_depreciation')
@@ -865,7 +827,7 @@ class CostCalculatorApp(tk.Tk):
         if os.path.exists(self.config_file):
             try:
                 with open(self.config_file, 'r', encoding='utf-8-sig') as f: return json.load(f)
-            except (json.JSONDecodeError, IOError): return {}
+            except Exception: return {}
         return {}
 
     def save_config(self):
@@ -873,8 +835,9 @@ class CostCalculatorApp(tk.Tk):
             self.config_data['invoice_settings'] = self.invoice_settings
             self.config_data['custom_themes'] = self.custom_themes
             self.config_data['language'] = lang_manager.current_language
+            self.config_data['currency'] = self.currency
             self.config_data['invoice_detail_presets'] = self.invoice_detail_presets
-            with open(self.config_file, 'w') as f: json.dump(self.config_data, f, indent=4, ensure_ascii=False)
+            with open(self.config_file, 'w', encoding='utf-8') as f: json.dump(self.config_data, f, indent=4, ensure_ascii=False)
         except IOError: pass
 
     def change_theme(self, theme_name, custom_theme_data=None):
@@ -886,6 +849,14 @@ class CostCalculatorApp(tk.Tk):
             self.config_data['theme'] = self.active_theme_name
             self.save_config()
             self.rebuild_view_menu()
+            
+    def change_currency(self, new_currency):
+        self.currency = new_currency
+        self.save_config()
+        for tab_id in self.notebook.tabs():
+            tab_widget = self.nametowidget(tab_id)
+            tab_widget.calculate_cost()
+        self.update_project_summary()
 
     def load_custom_theme(self, filepath=None, show_success_message=True):
         if not filepath: filepath = filedialog.askopenfilename(title="Select Theme File", filetypes=[("JSON Theme Files", "*.json")])
@@ -914,12 +885,40 @@ class CostCalculatorApp(tk.Tk):
         self.menu_bar.add_cascade(label=lang_manager.get("menu_view"), menu=self.view_menu)
         self.lang_menu = tk.Menu(self.menu_bar, tearoff=0)
         self.menu_bar.add_cascade(label=lang_manager.get("menu_language"), menu=self.lang_menu)
+        self.currency_menu = tk.Menu(self.menu_bar, tearoff=0)
+        
+        cur_label = lang_manager.get("menu_currency")
+        if cur_label == "menu_currency":
+            cur_label = "Валюта" if lang_manager.current_language == 'ru' else "Currency"
+            
+        self.menu_bar.add_cascade(label=cur_label, menu=self.currency_menu)
         self.update_language_menu_texts()
 
     def set_language(self, lang_code):
+        if lang_code == lang_manager.current_language:
+            return
+            
         lang_manager.set_language(lang_code)
         self.save_config()
-        messagebox.showinfo("Language Change", "Please restart the application for the language change to take full effect.")
+        
+        msg_title = "Перезапуск" if lang_code == 'ru' else "Restart Required"
+        msg_body = "Приложение будет перезапущено для применения языка." if lang_code == 'ru' else "The application will now restart to apply the language change."
+        messagebox.showinfo(msg_title, msg_body)
+        
+        save_title = "Сохранение" if lang_code == 'ru' else "Save Progress"
+        save_body = "Вы хотите сохранить текущий проект перед перезапуском?" if lang_code == 'ru' else "Do you want to save your project before restarting?"
+        
+        save_choice = messagebox.askyesno(save_title, save_body)
+        if save_choice:
+            saved = self.save_project()
+            if not saved:
+                return
+                
+        self.restart_app()
+        
+    def restart_app(self):
+        self.destroy()
+        os.execl(sys.executable, sys.executable, *sys.argv)
     
     def update_language_menu_texts(self):
         self.file_menu.delete(0, tk.END)
@@ -931,10 +930,21 @@ class CostCalculatorApp(tk.Tk):
         self.menu_bar.entryconfigure(1, label=lang_manager.get("menu_file"))
         self.menu_bar.entryconfigure(2, label=lang_manager.get("menu_view"))
         self.menu_bar.entryconfigure(3, label=lang_manager.get("menu_language"))
+        
+        cur_label = lang_manager.get("menu_currency")
+        if cur_label == "menu_currency":
+            cur_label = "Валюта" if lang_manager.current_language == 'ru' else "Currency"
+        self.menu_bar.entryconfigure(4, label=cur_label)
+        
         self.rebuild_view_menu()
+        
         self.lang_menu.delete(0, tk.END)
         for lang_code in lang_manager.get_available_languages():
             self.lang_menu.add_command(label=lang_code.upper(), command=lambda lc=lang_code: self.set_language(lc))
+            
+        self.currency_menu.delete(0, tk.END)
+        for cur in self.available_currencies:
+            self.currency_menu.add_command(label=cur, command=lambda c=cur: self.change_currency(c))
 
     def rebuild_view_menu(self):
         self.view_menu.delete(0, tk.END)
@@ -977,7 +987,8 @@ class CostCalculatorApp(tk.Tk):
         ttk.Separator(parent, orient='horizontal').pack(fill='x', pady=15)
         summary_total_frame = ttk.Frame(parent, style='TFrame'); summary_total_frame.pack(fill=tk.X)
         summary_total_frame.columnconfigure(1, weight=1)
-        self.summary_vars = {'total': tk.StringVar(value="0.00 €"), 'grand_total': tk.StringVar(value="0.00 €"), 'overall_discount': tk.DoubleVar(value=0.0), 'overall_markup': tk.DoubleVar(value=0.0)}
+        
+        self.summary_vars = {'total': tk.StringVar(value=f"0.00 {self.currency}"), 'grand_total': tk.StringVar(value=f"0.00 {self.currency}"), 'overall_discount': tk.DoubleVar(value=0.0), 'overall_markup': tk.DoubleVar(value=0.0)}
         self.summary_vars['overall_discount'].trace_add('write', self.update_project_summary); self.summary_vars['overall_markup'].trace_add('write', self.update_project_summary)
         r=0
         self.summary_total_label = ttk.Label(summary_total_frame, text=lang_manager.get("summary_total"), style='Header.TLabel')
@@ -1010,12 +1021,12 @@ class CostCalculatorApp(tk.Tk):
             tab_widget = self.nametowidget(tab_id)
             tab_name = self.notebook.tab(tab_id, "text")
             price = getattr(tab_widget, 'final_price', 0.0)
-            self.summary_tree.insert("", "end", values=(tab_name, f"{price:.2f} €"))
+            self.summary_tree.insert("", "end", values=(tab_name, f"{price:.2f} {self.currency}"))
             total_price += price
         discount = self.summary_vars['overall_discount'].get(); markup = self.summary_vars['overall_markup'].get()
         if discount > 100: discount = 100
         grand_total = total_price * (1 - discount / 100) * (1 + markup / 100)
-        self.summary_vars['total'].set(f"{total_price:.2f} €"); self.summary_vars['grand_total'].set(f"{grand_total:.2f} €")
+        self.summary_vars['total'].set(f"{total_price:.2f} {self.currency}"); self.summary_vars['grand_total'].set(f"{grand_total:.2f} {self.currency}")
     
     def add_new_tab(self, title=None, data=None):
         if title is None: title = f"Model {len(self.notebook.tabs()) + 1}"
@@ -1050,13 +1061,16 @@ class CostCalculatorApp(tk.Tk):
 
     def save_project(self):
         filepath = filedialog.asksaveasfilename(defaultextension=".json", filetypes=[("Calculator Projects", "*.json")])
-        if not filepath: return
+        if not filepath: return False
         project_data = [self.nametowidget(tab_id).get_data() for tab_id in self.notebook.tabs()]
         full_data = {'version': 4.1, 'tabs': project_data, 'summary': {k: v.get() for k, v in self.summary_vars.items() if isinstance(v, tk.DoubleVar)}}
         try:
             with open(filepath, 'w', encoding='utf-8') as f: json.dump(full_data, f, indent=4, ensure_ascii=False)
             messagebox.showinfo("Success", "Project saved successfully.")
-        except Exception as e: messagebox.showerror("Error", f"Failed to save project: {e}")
+            return True
+        except Exception as e: 
+            messagebox.showerror("Error", f"Failed to save project: {e}")
+            return False
 
     def load_project(self):
         filepath = filedialog.askopenfilename(filetypes=[("Calculator Projects", "*.json")])
@@ -1105,7 +1119,7 @@ class CostCalculatorApp(tk.Tk):
         label = ttk.Label(label_frame, text=lang_manager.get(label_lang_key), style='TLabel')
         label.pack(side=tk.LEFT, anchor='w')
         
-        help_text = self.help_texts.get(var_name) # Needs localization
+        help_text = self.help_texts.get(var_name)
         if help_text:
             help_button = ttk.Button(label_frame, text="?", style='Help.TButton', width=2)
             help_button.pack(side=tk.LEFT, anchor='w', padx=(5, 0))
@@ -1137,7 +1151,7 @@ class CostCalculatorApp(tk.Tk):
         label_widget.grid(row=row, column=0, sticky="w", padx=0, pady=2)
         
         var_name = label_lang_key
-        var = tk.StringVar(value="0.00 €"); 
+        var = tk.StringVar(value=f"0.00 {self.currency}"); 
         tab_instance.variables[var_name] = var
         tab_instance.result_labels[label_lang_key] = label_widget
 
@@ -1332,10 +1346,10 @@ class CostCalculatorApp(tk.Tk):
         
         if discount > 0:
             c.drawRightString(width - margin - 4*cm, y_pos, f"{lang_manager.get('pdf_discount', lang_code)} ({discount}%):")
-            c.drawRightString(width - margin, y_pos, f"- {(float(total.split(' ')[0]) * discount / 100):.2f} €")
+            c.drawRightString(width - margin, y_pos, f"- {(float(total.split(' ')[0]) * discount / 100):.2f} {self.currency}")
             y_pos -= 0.5*cm
         if markup > 0:
-            c.drawRightString(width - margin - 4*cm, y_pos, f"+ {(float(total.split(' ')[0]) * (1 - discount/100) * markup / 100):.2f} €")
+            c.drawRightString(width - margin - 4*cm, y_pos, f"+ {(float(total.split(' ')[0]) * (1 - discount/100) * markup / 100):.2f} {self.currency}")
             y_pos -= 0.5*cm
 
         c.setFont(f"{font_name_bold}", 12)
